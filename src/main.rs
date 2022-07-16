@@ -9,6 +9,8 @@ use std::{
 #[macro_use]
 extern crate rocket;
 
+static DIRECTORY: &str = "/data/";
+
 #[derive(Deserialize)]
 #[serde(crate = "rocket::serde")]
 struct FileData<'a> {
@@ -18,27 +20,23 @@ struct FileData<'a> {
 
 #[get("/<filename>")]
 fn get_file(filename: &str) -> String {
-    let directory = env::var("DIRECTORY").unwrap_or("/tmp/".to_string());
-
-    match fs::read_to_string(Path::new(&format!("{directory}{filename}"))) {
+    match fs::read_to_string(Path::new(&format!("{DIRECTORY}{filename}"))) {
         Ok(content) => {
             return format!("Successfull:\n'{content}'");
         }
-        Err(why) => format!("Error reading {directory}{filename}\n{}", why.kind()),
+        Err(why) => format!("Error reading {DIRECTORY}{filename}\n{}", why.kind()),
     }
 }
 
 #[post("/new", data = "<file_data>")]
 fn add_file(file_data: Json<FileData<'_>>) -> String {
-    let directory = env::var("DIRECTORY").unwrap_or("/tmp/".to_string());
-
     match write_to_file(
         file_data.content,
-        Path::new(&format!("{directory}{}", file_data.filename)),
+        Path::new(&format!("{DIRECTORY}{}", file_data.filename)),
     ) {
-        Ok(_) => format!("Successful! Wrote to {directory}{}", file_data.filename),
+        Ok(_) => format!("Successful! Wrote to {DIRECTORY}{}", file_data.filename),
         Err(why) => format!(
-            "Error writing to {directory}{}\n{}",
+            "Error writing to {DIRECTORY}{}\n{}",
             file_data.filename,
             why.kind()
         ),
@@ -47,7 +45,8 @@ fn add_file(file_data: Json<FileData<'_>>) -> String {
 
 #[launch]
 fn rocket() -> _ {
-    rocket::build().mount("/", routes![get_file, add_file])
+    let api_prefix = env::var("PREFIX").unwrap_or(String::from("/"));
+    rocket::build().mount(api_prefix, routes![get_file, add_file])
 }
 
 fn write_to_file(s: &str, path: &Path) -> io::Result<()> {
